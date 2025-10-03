@@ -8,7 +8,7 @@ __version__ = "1.0.0"
 
 from .simulate import simulate_annual_loss, simulate_portfolio
 from .metrics import summary, var, tvar
-from .lec import lec_points, plot_lec
+from .lec import lec_points, plot_lec_matplotlib, plot_lec_plotly
 from .io import load_register, save_quantified_register
 
 __all__ = [
@@ -18,7 +18,8 @@ __all__ = [
     "var",
     "tvar",
     "lec_points",
-    "plot_lec",
+    "plot_lec_matplotlib",
+    "plot_lec_plotly",
     "load_register",
     "save_quantified_register",
 ]

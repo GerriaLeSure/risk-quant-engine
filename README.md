@@ -1,376 +1,337 @@
-# 🎯 Enterprise Risk Quantification & Analytics Engine
+# Risk MC - Monte Carlo Engine for Enterprise Risk Quantification
 
-A comprehensive Python Streamlit application for quantifying and analyzing enterprise risks using Monte Carlo simulations, Loss Exceedance Curves, and advanced risk analytics.
+A Python library for enterprise risk quantification using frequency/severity Monte Carlo simulation with advanced analytics and visualization.
 
-## 📋 Features
+## 🎯 Features
 
-- **Risk Register Management**: Load and manage risk data from CSV/Excel files
-- **Monte Carlo Simulation**: Run 10,000+ simulations to quantify risk impact and likelihood
-- **Loss Exceedance Curves (LEC)**: Visualize probability of exceeding various loss thresholds
-- **Interactive Dashboard**: 
-  - Risk Register Overview with heat maps and categorization
-  - Monte Carlo Simulation results with portfolio-level metrics
-  - Loss Exceedance Curve visualization (Matplotlib & Plotly)
-  - KPI/KRI Dashboard with risk trends and inherent vs residual risk analysis
-- **Export Capabilities**: 
-  - CSV export of quantified risk register
-  - Executive summary report generation
-- **Comprehensive Testing**: Full pytest test suite for all core modules
-- **Docker Support**: Containerized deployment for easy setup
+- **Frequency/Severity Modeling**: Separate distributions for event frequency and loss severity
+- **Multiple Distributions**:
+  - Frequency: Poisson, Negative Binomial
+  - Severity: Lognormal, Normal (truncated), PERT
+- **Portfolio Simulation**: Aggregate multiple risks with 50,000+ simulations
+- **Risk Metrics**: VaR, TVaR (Expected Shortfall), percentiles, summary statistics
+- **Loss Exceedance Curves**: Probability of exceeding loss thresholds
+- **Sensitivity Analysis**: Marginal VaR contributions (dVaR), tornado charts
+- **Control Effectiveness**: Model impact of risk controls and residual factors
+- **Visualization**: Matplotlib and Plotly charts (histograms, LECs, tornado charts)
+- **I/O Support**: CSV and Excel risk register import/export
 
-## 🏗️ Project Structure
+## 📦 Installation
 
-```
-.
-├── src/
-│   ├── monte_carlo.py      # Monte Carlo simulation engine
-│   ├── risk_register.py    # Risk register management
-│   ├── curves.py           # Loss Exceedance Curve generation
-│   └── dashboard.py        # Streamlit dashboard UI
-├── data/
-│   └── sample_risk_register.csv  # Sample risk data (10 risks)
-├── tests/
-│   ├── test_monte_carlo.py       # Monte Carlo tests
-│   ├── test_risk_register.py     # Risk register tests
-│   └── test_curves.py            # LEC tests
-├── requirements.txt        # Python dependencies
-├── Dockerfile             # Docker configuration
-└── README.md              # This file
+```bash
+# Clone or download the repository
+cd risk-mc
+
+# Install dependencies
+make install
+# or
+pip install -r requirements.txt
 ```
 
 ## 🚀 Quick Start
 
-### Option 1: Local Installation
+### 1. Run Demo Simulation
 
-#### Prerequisites
-- Python 3.9 or higher
-- pip package manager
-
-#### Installation Steps
-
-1. **Clone the repository** (or navigate to the project directory):
 ```bash
-cd /workspace
+make run-demo
 ```
 
-2. **Create a virtual environment** (recommended):
-```bash
-python -m venv venv
+This will:
+- Load the sample risk register (10 risks)
+- Run 50,000 Monte Carlo simulations
+- Generate analytics and visualizations in `artifacts/`
+- Save quantified risk register with VaR/TVaR metrics
 
-# On Linux/Mac:
-source venv/bin/activate
+### 2. Basic Usage
 
-# On Windows:
-venv\Scripts\activate
+```python
+from risk_mc import load_register, simulate_portfolio, summary
+
+# Load risk register
+register_df = load_register("data/sample_risk_register.csv")
+
+# Run simulation
+portfolio_df = simulate_portfolio(register_df, n_sims=50_000, seed=42)
+
+# Get portfolio metrics
+portfolio_losses = portfolio_df["portfolio_loss"].values
+stats = summary(portfolio_losses)
+
+print(f"Expected Loss: ${stats['mean']:,.0f}")
+print(f"95% VaR: ${stats['var_95']:,.0f}")
+print(f"99% TVaR: ${stats['tvar_99']:,.0f}")
 ```
 
-3. **Install dependencies**:
-```bash
-pip install -r requirements.txt
+### 3. Loss Exceedance Curve
+
+```python
+from risk_mc import lec_points
+from risk_mc.plots import plot_lec_matplotlib
+
+# Calculate LEC
+lec_df = lec_points(portfolio_losses, probs=[0.5, 0.2, 0.1, 0.05, 0.01])
+
+# Plot
+fig = plot_lec_matplotlib(portfolio_losses, mark_percentiles=[0.95, 0.99])
+fig.savefig("lec.png")
 ```
 
-4. **Run the application**:
-```bash
-streamlit run src/dashboard.py
+### 4. Sensitivity Analysis
+
+```python
+from risk_mc.metrics import tornado_data
+from risk_mc.plots import plot_tornado
+
+# Extract individual risk losses
+by_risk_losses = {}
+for col in portfolio_df.columns:
+    if col.startswith("by_risk:"):
+        risk_id = col.replace("by_risk:", "")
+        by_risk_losses[risk_id] = portfolio_df[col].values
+
+# Generate tornado data
+tornado_df = tornado_data(
+    register_df, 
+    portfolio_losses, 
+    by_risk_losses, 
+    q=0.95, 
+    top_n=10
+)
+
+# Plot
+fig = plot_tornado(tornado_df, metric="mean_loss")
+fig.savefig("tornado.png")
 ```
 
-5. **Access the dashboard**:
-Open your browser and navigate to:
-```
-http://localhost:8501
-```
+## 📊 Risk Register Format
 
-### Option 2: Docker Deployment
+CSV/Excel file with the following columns:
 
-#### Prerequisites
-- Docker installed on your system
-- Docker Compose (optional, for advanced setups)
+| Column | Description | Example |
+|--------|-------------|---------|
+| `RiskID` | Unique identifier | R01 |
+| `Category` | Risk category | Cyber, Operational, Financial |
+| `Description` | Risk description | Phishing attack leading to data breach |
+| `FrequencyModel` | Distribution for event count | Poisson, NegBin |
+| `FreqParam1` | First parameter | λ for Poisson, r for NegBin |
+| `FreqParam2` | Second parameter (optional) | p for NegBin |
+| `SeverityModel` | Distribution for loss amount | Lognormal, Normal, PERT |
+| `SevParam1` | First parameter | μ for Lognormal/Normal, min for PERT |
+| `SevParam2` | Second parameter | σ for Lognormal/Normal, mode for PERT |
+| `SevParam3` | Third parameter (optional) | max for PERT |
+| `ControlEffectiveness` | Control reduction (0-1) | 0.3 = 30% reduction |
+| `ResidualFactor` | Residual multiplier (0-1) | 0.7 = 30% reduction |
 
-#### Docker Steps
-
-1. **Build the Docker image**:
-```bash
-docker build -t risk-analytics-engine .
-```
-
-2. **Run the container**:
-```bash
-docker run -p 8501:8501 risk-analytics-engine
-```
-
-3. **Access the dashboard**:
-Open your browser and navigate to:
-```
-http://localhost:8501
-```
-
-#### Advanced Docker Options
-
-**Run with volume mount** (to use your own data files):
-```bash
-docker run -p 8501:8501 -v $(pwd)/data:/app/data risk-analytics-engine
-```
-
-**Run in detached mode**:
-```bash
-docker run -d -p 8501:8501 --name risk-analytics risk-analytics-engine
-```
-
-**View logs**:
-```bash
-docker logs -f risk-analytics
-```
-
-**Stop the container**:
-```bash
-docker stop risk-analytics
-```
-
-## 📊 Using the Application
-
-### 1. Load Risk Register
-
-**Using Sample Data:**
-- Check the "Use Sample Data" checkbox in the sidebar
-- Click "Load Sample Data"
-- The application will load 10 example risks covering various categories
-
-**Using Your Own Data:**
-- Uncheck "Use Sample Data"
-- Upload a CSV or Excel file with your risk register
-- Required columns: `risk_id`, `risk_name`, `likelihood`, `impact`
-- Optional columns: `category`, `owner`, `status`, `likelihood_std`, `impact_min`, `impact_most_likely`, `impact_max`
-
-### 2. Explore Risk Register Overview
-
-The **Risk Register** tab shows:
-- Summary statistics (total risks, active risks, averages)
-- Risk distribution by category (pie chart)
-- Inherent vs Residual risk comparison
-- Risk heat map (likelihood × impact)
-- Detailed risk table with filters
-
-### 3. Run Monte Carlo Simulations
-
-Navigate to the **Monte Carlo Simulation** tab:
-1. Select number of simulations (1,000 - 100,000)
-2. Click "🚀 Run Simulation"
-3. View results:
-   - Portfolio-level metrics (mean, median, VaR, CVaR)
-   - Loss distribution histogram
-   - Risk contribution by category
-   - Individual risk simulation results
-   - Top 5 risks waterfall chart
-
-### 4. Analyze Loss Exceedance Curves
-
-The **Loss Exceedance Curve** tab displays:
-- Interactive LEC plot (Plotly or Matplotlib)
-- Value at Risk (VaR) and Conditional VaR (CVaR) table
-- Return period analysis
-- Percentile markers (P90, P95, P99)
-
-### 5. Review KPI/KRI Dashboard
-
-The **KPI/KRI Dashboard** tab shows:
-- Key Risk Indicators (KRIs)
-- Inherent vs Residual risk comparison
-- Risk trends over time
-- Risk appetite analysis with gauge chart
-- Top risks by category
-
-### 6. Export Results
-
-From the sidebar:
-- **Export Risk Register (CSV)**: Download quantified risk data
-- **Generate Executive Summary**: Download comprehensive report
-
-## 🧪 Running Tests
-
-### Run all tests:
-```bash
-pytest tests/ -v
-```
-
-### Run tests with coverage:
-```bash
-pytest tests/ --cov=src --cov-report=html
-```
-
-### Run specific test modules:
-```bash
-# Test Monte Carlo module
-pytest tests/test_monte_carlo.py -v
-
-# Test Risk Register module
-pytest tests/test_risk_register.py -v
-
-# Test Loss Exceedance Curves
-pytest tests/test_curves.py -v
-```
-
-### View coverage report:
-After running with coverage, open `htmlcov/index.html` in your browser.
-
-## 📝 Sample Risk Register Format
-
-Your CSV/Excel file should follow this format:
+### Example Risk Register
 
 ```csv
-risk_id,risk_name,category,description,likelihood,impact,owner,status
-R001,Cybersecurity Breach,Technology,Risk of data breach,0.35,500000,CISO,Active
-R002,Supply Chain Disruption,Operational,Supplier failure,0.25,800000,COO,Active
+RiskID,Category,Description,FrequencyModel,FreqParam1,FreqParam2,SeverityModel,SevParam1,SevParam2,SevParam3,ControlEffectiveness,ResidualFactor
+R01,Cyber,Phishing attack,Poisson,2.0,,Lognormal,12.0,0.8,,0.3,0.7
+R02,Cyber,Ransomware incident,Poisson,0.5,,Lognormal,14.0,1.2,,0.4,0.6
+R03,Operational,Supply chain disruption,Poisson,1.5,,Normal,500000,150000,,0.2,0.8
+R04,Operational,Equipment failure,NegBin,3.0,0.6,PERT,50000,100000,300000,0.1,0.9
 ```
 
-**Column Definitions:**
-- `risk_id`: Unique identifier (required)
-- `risk_name`: Descriptive name (required)
-- `category`: Risk category (optional)
-- `description`: Detailed description (optional)
-- `likelihood`: Probability of occurrence, 0-1 (required)
-- `impact`: Financial impact in dollars (required)
-- `likelihood_std`: Standard deviation of likelihood (optional, default: 0.1)
-- `impact_min`: Minimum financial impact (optional, default: impact × 0.5)
-- `impact_most_likely`: Most likely impact (optional, default: impact)
-- `impact_max`: Maximum financial impact (optional, default: impact × 1.5)
-- `owner`: Risk owner (optional)
-- `status`: Risk status (optional, default: 'Active')
-- `inherent_risk_score`: Score before controls (optional, calculated)
-- `residual_risk_score`: Score after controls (optional, calculated)
+### Distribution Parameters
 
-## 🎓 Monte Carlo Simulation Methodology
+**Frequency Distributions:**
+- **Poisson(λ)**: λ = mean annual event count
+- **NegBin(r, p)**: r = number of successes, p = success probability
 
-The application uses a sophisticated Monte Carlo approach:
+**Severity Distributions:**
+- **Lognormal(μ, σ)**: μ, σ on log scale (use `log(median)` for μ)
+- **Normal(μ, σ)**: μ = mean, σ = standard deviation (truncated at 0)
+- **PERT(min, mode, max)**: Three-point estimate using Beta distribution
 
-1. **Likelihood Modeling**: Beta distribution bounded between 0-1
-2. **Impact Modeling**: Triangular, Normal, or Lognormal distributions
-3. **Event Occurrence**: Binomial distribution based on likelihood
-4. **Portfolio Aggregation**: Sum of individual risk simulations
-5. **Risk Metrics**:
-   - Mean/Median loss
-   - Standard deviation
-   - Value at Risk (VaR) at 90%, 95%, 99%
-   - Conditional VaR (CVaR)
-   - Loss Exceedance Curves
+## 🏗️ Project Structure
 
-## 📈 Loss Exceedance Curve (LEC)
+```
+risk-mc/
+├── src/risk_mc/
+│   ├── __init__.py              # Main exports
+│   ├── distributions.py         # Frequency/severity distributions
+│   ├── simulate.py              # Core simulation engine
+│   ├── metrics.py               # Risk metrics (VaR, TVaR, dVaR)
+│   ├── lec.py                   # Loss Exceedance Curve utilities
+│   ├── plots.py                 # Visualization helpers
+│   └── io.py                    # CSV/Excel I/O
+├── data/
+│   └── sample_risk_register.csv # Sample risk data (10 risks)
+├── tests/
+│   ├── test_simulate.py         # Simulation tests
+│   ├── test_lec.py              # LEC tests
+│   ├── test_io.py               # I/O tests
+│   └── test_distributions.py    # Distribution tests
+├── scripts/
+│   └── demo_portfolio.py        # Demo script
+├── artifacts/                   # Generated outputs
+├── requirements.txt             # Dependencies
+├── pyproject.toml               # Project config (ruff, black)
+├── Makefile                     # Build commands
+└── README.md                    # This file
+```
 
-The LEC shows the probability of losses exceeding various thresholds:
+## 🧪 Testing
 
-- **X-axis**: Loss threshold (dollars)
+```bash
+# Run all tests
+make test
+
+# Run with coverage
+make test-cov
+
+# Run specific test file
+pytest tests/test_simulate.py -v
+```
+
+### Test Coverage
+
+- **Deterministic with seed**: All simulations reproducible
+- **Shape validation**: Output dimensions correct
+- **Monotonicity**: Percentiles ordered (p99 ≥ p95 ≥ p90 ≥ p50)
+- **Hand-calculated cases**: Zero frequency → zero loss
+- **Distribution properties**: Mean/variance match theory
+- **Parameter validation**: Invalid inputs raise errors
+
+## 🎨 Code Quality
+
+```bash
+# Format code
+make format
+
+# Run linter
+make lint
+
+# Run all checks
+make all
+```
+
+Configuration in `pyproject.toml`:
+- **Black**: Code formatting (line length 100)
+- **Ruff**: Fast Python linter (E, W, F, I, B, C4, UP rules)
+- **Pytest**: Test framework with coverage support
+
+## 📈 Methodology
+
+### Frequency/Severity Approach
+
+For each risk and simulation:
+
+1. **Sample frequency**: Draw annual event count from frequency distribution
+2. **Sample severities**: For each event, draw loss amount from severity distribution
+3. **Apply controls**: Multiply by `ResidualFactor × (1 - ControlEffectiveness)`
+4. **Aggregate**: Sum to get annual loss for this risk
+5. **Portfolio**: Sum all risks to get total portfolio loss
+
+### Risk Metrics
+
+- **VaR (Value at Risk)**: Loss threshold at given confidence level (e.g., 95th percentile)
+- **TVaR (Tail VaR)**: Mean loss in tail beyond VaR (aka Expected Shortfall, CVaR)
+- **dVaR (Marginal VaR)**: Risk's contribution to portfolio tail events
+  - Calculated as mean loss contribution in tail scenarios (portfolio loss ≥ VaR)
+
+### Loss Exceedance Curve (LEC)
+
+Shows probability of annual loss exceeding various thresholds:
+- **X-axis**: Loss threshold ($)
 - **Y-axis**: Exceedance probability (%)
-- **Interpretation**: For any given loss amount, the curve shows the probability that total losses will exceed that amount
+- **Interpretation**: For threshold $X, curve shows P(Loss ≥ $X)
 
-**Key Metrics:**
-- **VaR (Value at Risk)**: Maximum expected loss at a given confidence level
-- **CVaR (Conditional VaR)**: Average loss beyond the VaR threshold
-- **Return Period**: Expected time between events of a given magnitude
+## 📚 API Reference
+
+### Simulation
+
+```python
+simulate_annual_loss(risk_row, n_sims=50_000, seed=None) -> np.ndarray
+simulate_portfolio(register_df, n_sims=50_000, seed=None) -> pd.DataFrame
+```
+
+### Metrics
+
+```python
+summary(losses) -> pd.Series  # mean, median, std, percentiles, VaR, TVaR
+var(losses, confidence=0.95) -> float
+tvar(losses, confidence=0.95) -> float
+marginal_contribution_to_var(by_risk_losses, portfolio_losses, q=0.95) -> Dict
+tornado_data(register_df, portfolio_losses, by_risk_losses, q=0.95, top_n=10) -> pd.DataFrame
+```
+
+### Loss Exceedance Curve
+
+```python
+lec_points(losses, probs=None, n_points=100) -> pd.DataFrame
+exceedance_prob(losses, loss_threshold) -> float
+return_period(losses, loss_threshold) -> float
+plot_lec_matplotlib(losses, n_points=100, mark_percentiles=[0.95, 0.99]) -> plt.Figure
+plot_lec_plotly(losses, n_points=100, mark_percentiles=[0.95, 0.99]) -> go.Figure
+```
+
+### Plots
+
+```python
+loss_histogram(losses, bins=50, kde=True, mark_percentiles=[0.95, 0.99]) -> plt.Figure
+plot_tornado(tornado_df, metric="mean_loss") -> plt.Figure
+plot_dual_tornado(tornado_df) -> plt.Figure
+```
+
+### I/O
+
+```python
+load_register(path) -> pd.DataFrame
+save_quantified_register(register_df, portfolio_df, out_path)
+```
 
 ## 🔧 Configuration
 
-### Streamlit Configuration
+Default simulation parameters:
+- **n_sims**: 50,000 (adjustable 1,000 - 1,000,000+)
+- **seed**: None (set for reproducibility)
+- **VaR confidence**: 95% and 99%
+- **LEC points**: 100
 
-Create a `.streamlit/config.toml` file for custom settings:
+## 💡 Examples
 
-```toml
-[theme]
-primaryColor = "#2E86AB"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F0F2F6"
-textColor = "#262730"
-font = "sans serif"
+See `scripts/demo_portfolio.py` for a complete example that:
+- Loads 10-risk portfolio
+- Runs 50,000 simulations
+- Prints detailed metrics
+- Generates 5 visualizations
+- Saves quantified register
 
-[server]
-maxUploadSize = 200
-enableXsrfProtection = true
-enableCORS = false
-```
+Output includes:
+- Portfolio loss histogram (`artifacts/portfolio_hist.png`)
+- Loss Exceedance Curve (`artifacts/lec.png`)
+- Tornado chart by mean loss (`artifacts/tornado.png`)
+- Tornado chart by dVaR (`artifacts/tornado_dvar.png`)
+- Dual comparison chart (`artifacts/tornado_dual.png`)
+- Quantified register (`artifacts/quantified_register.csv`)
 
-### Environment Variables
-
-You can set the following environment variables:
-
-```bash
-# Streamlit configuration
-export STREAMLIT_SERVER_PORT=8501
-export STREAMLIT_SERVER_ADDRESS=0.0.0.0
-
-# Application settings
-export DEFAULT_SIMULATIONS=10000
-export RANDOM_SEED=42
-```
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**Issue: Module not found error**
-```bash
-# Solution: Install dependencies
-pip install -r requirements.txt
-```
-
-**Issue: Port 8501 already in use**
-```bash
-# Solution: Use a different port
-streamlit run src/dashboard.py --server.port 8502
-```
-
-**Issue: Docker container won't start**
-```bash
-# Solution: Check logs
-docker logs risk-analytics
-
-# Rebuild image
-docker build --no-cache -t risk-analytics-engine .
-```
-
-**Issue: CSV file won't load**
-- Ensure the file has the required columns: `risk_id`, `risk_name`, `likelihood`, `impact`
-- Check for proper CSV formatting (commas as delimiters)
-- Verify numeric columns contain valid numbers
-
-## 🤝 Contributing
-
-Contributions are welcome! Here's how:
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Make your changes and add tests
-4. Run tests: `pytest tests/ -v`
-5. Commit your changes: `git commit -am 'Add feature'`
-6. Push to the branch: `git push origin feature-name`
-7. Submit a pull request
-
-## 📄 License
+## 📝 License
 
 This project is provided as-is for educational and commercial use.
 
-## 🙏 Acknowledgments
+## 🤝 Contributing
 
-- Built with [Streamlit](https://streamlit.io/)
-- Visualizations powered by [Plotly](https://plotly.com/) and [Matplotlib](https://matplotlib.org/)
-- Statistical computations using [NumPy](https://numpy.org/) and [SciPy](https://scipy.org/)
+1. Fork the repository
+2. Create a feature branch
+3. Make changes with tests
+4. Run `make all` to check formatting, linting, and tests
+5. Submit a pull request
 
 ## 📞 Support
 
-For issues, questions, or contributions:
-- Create an issue in the repository
-- Contact the development team
-- Check the documentation
+For issues or questions:
+- Review the examples in `scripts/demo_portfolio.py`
+- Check test files for usage patterns
+- Run `make test` to verify installation
 
-## 🔄 Version History
+## 🎓 References
 
-### v1.0.0 (2025-10-03)
-- Initial release
-- Monte Carlo simulation engine (10k+ simulations)
-- Risk register management (CSV/Excel support)
-- Loss Exceedance Curves with interactive visualization
-- Multi-tab Streamlit dashboard
-- Export functionality (CSV, text reports)
-- Comprehensive test suite
-- Docker support
+- **Frequency/Severity Modeling**: Standard actuarial approach for operational risk
+- **VaR/TVaR**: Basel II/III regulatory risk measures
+- **Loss Exceedance Curves**: Common in insurance and reinsurance
+- **PERT Distribution**: Project management three-point estimates
 
 ---
 
-**Built with ❤️ for Enterprise Risk Management**
+**Built for enterprise risk quantification with Python, NumPy, Pandas, and SciPy.**
