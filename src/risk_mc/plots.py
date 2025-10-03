@@ -288,6 +288,123 @@ def compare_distributions(
     return fig
 
 
+def plot_tornado(
+    tornado_df: pd.DataFrame,
+    metric: str = "mean_loss",
+    title: Optional[str] = None,
+    figsize: Tuple[int, int] = (10, 8)
+) -> plt.Figure:
+    """
+    Plot tornado chart showing top risk contributors.
+    
+    Args:
+        tornado_df: DataFrame from metrics.tornado_data
+        metric: Metric to plot ('mean_loss' or 'dvar')
+        title: Plot title (auto-generated if None)
+        figsize: Figure size
+        
+    Returns:
+        matplotlib Figure object
+    """
+    df = tornado_df.copy()
+    df = df.sort_values(metric, ascending=True)  # Ascending for horizontal bars
+    
+    if title is None:
+        if metric == "mean_loss":
+            title = "Top Risk Contributors by Mean Loss"
+        elif metric == "dvar":
+            title = "Top Risk Contributors by dVaR (Tail Contribution)"
+        else:
+            title = f"Top Risk Contributors by {metric}"
+    
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    # Create horizontal bar chart
+    colors = plt.cm.RdYlBu_r(np.linspace(0.3, 0.9, len(df)))
+    bars = ax.barh(df["risk_id"], df[metric], color=colors, edgecolor="black", linewidth=1.5)
+    
+    # Add value labels
+    for i, (bar, value) in enumerate(zip(bars, df[metric])):
+        ax.text(
+            value * 1.02,
+            bar.get_y() + bar.get_height() / 2,
+            f"${value:,.0f}",
+            va="center",
+            fontsize=9,
+            fontweight="bold"
+        )
+    
+    # Add category labels
+    for i, (idx, row) in enumerate(df.iterrows()):
+        ax.text(
+            0,
+            i,
+            f"  [{row['category']}]",
+            va="center",
+            ha="left",
+            fontsize=8,
+            color="white",
+            fontweight="bold",
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="black", alpha=0.7)
+        )
+    
+    ax.set_xlabel(
+        "Mean Loss ($)" if metric == "mean_loss" else "dVaR Contribution ($)",
+        fontsize=12,
+        fontweight="bold"
+    )
+    ax.set_ylabel("Risk ID", fontsize=12, fontweight="bold")
+    ax.set_title(title, fontsize=14, fontweight="bold", pad=20)
+    ax.grid(True, alpha=0.3, linestyle="--", axis="x")
+    
+    # Format x-axis as currency
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"${x:,.0f}"))
+    
+    plt.tight_layout()
+    return fig
+
+
+def plot_dual_tornado(
+    tornado_df: pd.DataFrame,
+    figsize: Tuple[int, int] = (14, 8)
+) -> plt.Figure:
+    """
+    Plot dual tornado chart comparing mean loss and dVaR contributions.
+    
+    Args:
+        tornado_df: DataFrame from metrics.tornado_data
+        figsize: Figure size
+        
+    Returns:
+        matplotlib Figure object
+    """
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize, sharey=True)
+    
+    df = tornado_df.copy()
+    df = df.sort_values("mean_loss", ascending=False)
+    
+    # Left plot: Mean Loss
+    colors1 = plt.cm.Blues(np.linspace(0.4, 0.9, len(df)))
+    ax1.barh(df["risk_id"], df["mean_loss"], color=colors1, edgecolor="black")
+    ax1.set_xlabel("Mean Loss ($)", fontsize=11, fontweight="bold")
+    ax1.set_title("By Mean Loss", fontsize=12, fontweight="bold")
+    ax1.grid(True, alpha=0.3, linestyle="--", axis="x")
+    ax1.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"${x:,.0f}"))
+    
+    # Right plot: dVaR
+    colors2 = plt.cm.Reds(np.linspace(0.4, 0.9, len(df)))
+    ax2.barh(df["risk_id"], df["dvar"], color=colors2, edgecolor="black")
+    ax2.set_xlabel("dVaR Contribution ($)", fontsize=11, fontweight="bold")
+    ax2.set_title("By Tail Contribution (dVaR)", fontsize=12, fontweight="bold")
+    ax2.grid(True, alpha=0.3, linestyle="--", axis="x")
+    ax2.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"${x:,.0f}"))
+    
+    fig.suptitle("Risk Contribution Analysis", fontsize=16, fontweight="bold", y=0.98)
+    
+    plt.tight_layout()
+    return fig
+
+
 def save_figure(fig: plt.Figure, path: str, dpi: int = 300) -> None:
     """
     Save matplotlib figure to file.
