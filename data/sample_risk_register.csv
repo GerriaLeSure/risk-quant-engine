@@ -1,11 +1,11 @@
-risk_id,risk_name,category,description,likelihood,impact,likelihood_std,impact_min,impact_most_likely,impact_max,owner,status,inherent_risk_score,residual_risk_score
-R001,Cybersecurity Breach,Technology,Risk of data breach or cyber attack compromising sensitive information,0.35,500000,0.12,200000,500000,1500000,CISO,Active,175000,122500
-R002,Supply Chain Disruption,Operational,Major supplier failure or logistics breakdown,0.25,800000,0.10,300000,800000,2000000,COO,Active,200000,140000
-R003,Regulatory Non-Compliance,Compliance,Failure to comply with new financial regulations,0.20,1200000,0.08,500000,1200000,3000000,CCO,Active,240000,168000
-R004,Key Personnel Loss,Human Resources,Loss of critical staff members with specialized knowledge,0.40,300000,0.15,100000,300000,750000,CHRO,Active,120000,84000
-R005,Market Volatility Impact,Financial,Adverse market conditions affecting investment portfolio,0.55,600000,0.18,250000,600000,1400000,CFO,Active,330000,231000
-R006,Technology Infrastructure Failure,Technology,Critical system outage or infrastructure failure,0.30,700000,0.10,300000,700000,1800000,CTO,Active,210000,147000
-R007,Reputational Damage,Strategic,Negative publicity or brand damage from product failure,0.15,900000,0.07,400000,900000,2500000,CMO,Active,135000,94500
-R008,Natural Disaster Impact,Environmental,Physical damage to facilities from natural events,0.10,1500000,0.05,600000,1500000,4000000,Facilities Manager,Active,150000,105000
-R009,Third-Party Vendor Risk,Operational,Failure or security breach by third-party service provider,0.45,400000,0.13,150000,400000,1000000,Procurement Lead,Active,180000,126000
-R010,Economic Recession,Financial,Prolonged economic downturn affecting revenue streams,0.30,1000000,0.12,400000,1000000,2800000,CEO,Active,300000,210000
+RiskID,Category,Description,FrequencyModel,FreqParam1,FreqParam2,SeverityModel,SevParam1,SevParam2,SevParam3,ControlEffectiveness,ResidualFactor
+R01,Cyber,Phishing attack leading to data breach,Poisson,2.0,,Lognormal,12.0,0.8,,0.3,0.7
+R02,Cyber,Ransomware incident,Poisson,0.5,,Lognormal,14.0,1.2,,0.4,0.6
+R03,Operational,Supply chain disruption,Poisson,1.5,,Normal,500000,150000,,0.2,0.8
+R04,Operational,Equipment failure,NegBin,3.0,0.6,PERT,50000,100000,300000,0.1,0.9
+R05,Financial,Market volatility loss,Poisson,4.0,,Lognormal,11.5,0.6,,0.0,1.0
+R06,Compliance,Regulatory fine,Poisson,0.3,,PERT,100000,500000,2000000,0.5,0.5
+R07,Strategic,Failed product launch,Poisson,0.2,,Lognormal,13.5,0.9,,0.3,0.7
+R08,HR,Key personnel departure,Poisson,1.0,,Normal,200000,80000,,0.2,0.8
+R09,Technology,System downtime,NegBin,5.0,0.7,Lognormal,10.0,0.5,,0.3,0.7
+R10,Reputational,Brand damage incident,Poisson,0.4,,PERT,200000,800000,3000000,0.4,0.6
