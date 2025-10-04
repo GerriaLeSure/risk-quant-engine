@@ -160,9 +160,11 @@ Browser opens automatically to http://localhost:8501
 - **High precision**: Use 100K simulations (slower)
 
 ### Data Quality
-- Ensure CSV has all 12 required columns (see data/SCHEMA.md)
+- Ensure CSV has all 11 required columns (see data/SCHEMA.md)
+- Use `blank_risk_register_template.csv` as a starting point
 - Validate numeric fields are numbers
 - Check ControlEffectiveness and ResidualFactor are in [0, 1]
+- Reference `sample_risk_register.csv` for examples
 
 ### Analysis Workflow
 1. Start with Risk Register tab (load and quantify)
