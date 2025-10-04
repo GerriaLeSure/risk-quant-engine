@@ -19,7 +19,8 @@ from risk_mc import (
     simulate_portfolio,
     summary,
     lec_points,
-    save_quantified_register
+    save_quantified_register,
+    quantify_register
 )
 from risk_mc.metrics import (
     portfolio_summary,
@@ -33,6 +34,14 @@ from risk_mc.plots import (
     plot_tornado,
     plot_dual_tornado,
     save_figure
+)
+from risk_mc.dashboard_kri import (
+    calculate_kpi_kri_summary,
+    print_kpi_kri_summary,
+    residual_vs_inherent_heatmap,
+    plot_top_exposures,
+    generate_trend_data,
+    plot_trend_chart
 )
 from risk_mc.simulate import simulate_risk_batch
 
@@ -187,15 +196,47 @@ def main():
     
     print()
     
+    # KPI/KRI Dashboard Components
+    print("📊 Generating KPI/KRI Dashboard Components...")
+    print("=" * 70)
+    
+    # Quantify register for KPI/KRI analysis
+    quantified_df = quantify_register(register_df, n_sims=n_sims, seed=seed)
+    
+    # 6. Residual vs Inherent Heatmap
+    print("   → Residual vs Inherent heatmap...")
+    fig_heatmap = residual_vs_inherent_heatmap(quantified_df, use_plotly=False)
+    heatmap_path = artifacts_dir / "residual_inherent_heatmap.png"
+    save_figure(fig_heatmap, str(heatmap_path))
+    
+    # 7. Top Exposures Chart
+    print("   → Top 5 exposures chart...")
+    fig_top_exp = plot_top_exposures(quantified_df, metric='mean', top_n=5)
+    top_exp_path = artifacts_dir / "top_exposures.png"
+    save_figure(fig_top_exp, str(top_exp_path))
+    
+    # 8. Trend Chart
+    print("   → Risk exposure trends...")
+    trend_df = generate_trend_data(quantified_df, n_periods=8, period_label="Quarter")
+    fig_trend = plot_trend_chart(trend_df)
+    trend_path = artifacts_dir / "risk_trends.png"
+    save_figure(fig_trend, str(trend_path))
+    
+    # 9. Calculate KPI/KRI Summary
+    print("   → Calculating KPI/KRI metrics...")
+    kpi_kri = calculate_kpi_kri_summary(quantified_df)
+    
+    print()
+    
     # Save quantified register
     print("💾 Saving quantified risk register...")
     quantified_path = artifacts_dir / "quantified_register.csv"
-    save_quantified_register(register_df, portfolio_df, str(quantified_path))
+    quantified_df.to_csv(quantified_path, index=False)
     print()
     
     # Summary
     print("=" * 70)
-    print("✅ SIMULATION COMPLETE")
+    print("✅ Demo Complete!")
     print("=" * 70)
     print()
     print("Artifacts generated:")
@@ -204,13 +245,23 @@ def main():
     print(f"  • {tornado_path}")
     print(f"  • {tornado_dvar_path}")
     print(f"  • {dual_tornado_path}")
+    print(f"  • {heatmap_path}")
+    print(f"  • {top_exp_path}")
+    print(f"  • {trend_path}")
     print(f"  • {quantified_path}")
     print()
-    print("Key Findings:")
+    
+    # Print KPI/KRI Summary
+    print_kpi_kri_summary(kpi_kri)
+    print()
+    
+    print("Quick Findings:")
     print(f"  • Portfolio Expected Annual Loss: ${portfolio_stats['mean']:,.0f}")
     print(f"  • 95% VaR (worst case in 19/20 years): ${portfolio_stats['var_95']:,.0f}")
     print(f"  • 99% TVaR (expected loss in worst 1% scenarios): ${portfolio_stats['tvar_99']:,.0f}")
     print(f"  • Top risk contributor: {contrib_df.iloc[0]['risk_id']} ({contrib_df.iloc[0]['contribution_pct']:.1f}% of expected loss)")
+    print(f"  • Mitigation effectiveness: {kpi_kri['mitigation_effectiveness_pct']:.1f}%")
+    print(f"  • Risk concentration (top 3): {kpi_kri['concentration_ratio_pct']:.1f}%")
     print()
 
 
