@@ -30,7 +30,29 @@ pip install -r requirements.txt
 
 ## 🚀 Quick Start
 
-### 1. Simple Risk Register Quantification
+### 1. Streamlit Web Dashboard (Easiest!)
+
+```bash
+# Launch interactive dashboard
+streamlit run src/risk_mc_dashboard.py
+
+# Or use the helper script
+./scripts/run_dashboard.sh
+
+# Or use Make
+make run-dashboard
+```
+
+Then open your browser to **http://localhost:8501**
+
+**Dashboard Features:**
+1. 📋 Upload risk register (CSV/Excel)
+2. 🎲 Run Monte Carlo simulations
+3. 📈 View Loss Exceedance Curves
+4. 📊 Explore KPI/KRI dashboards
+5. 📤 Export results and reports
+
+### 2. Simple Risk Register Quantification (Python API)
 
 ```python
 from risk_mc import load_register, quantify_register
