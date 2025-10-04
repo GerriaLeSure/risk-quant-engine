@@ -30,27 +30,41 @@ pip install -r requirements.txt
 
 ## 🚀 Quick Start
 
-### 1. Streamlit Web Dashboard (Easiest!)
+### 1. Streamlit Web Dashboards (Easiest!)
 
+**TWO Professional Dashboards Available:**
+
+#### Option A: Risk MC Dashboard (Monte Carlo Engine)
 ```bash
-# Launch interactive dashboard
+# Launch Risk MC dashboard (Frequency × Severity Monte Carlo)
 streamlit run src/risk_mc_dashboard.py
 
-# Or use the helper script
+# Or use shortcuts
 ./scripts/run_dashboard.sh
-
-# Or use Make
 make run-dashboard
 ```
 
-Then open your browser to **http://localhost:8501**
-
 **Dashboard Features:**
 1. 📋 Upload risk register (CSV/Excel)
-2. 🎲 Run Monte Carlo simulations
+2. 🎲 Run Monte Carlo simulations (50K+)
 3. 📈 View Loss Exceedance Curves
-4. 📊 Explore KPI/KRI dashboards
+4. 📊 Explore KPI/KRI dashboards (VaR, TVaR, dVaR)
 5. 📤 Export results and reports
+
+#### Option B: Original Dashboard (Likelihood × Impact)
+```bash
+# Launch original dashboard (Traditional risk scoring)
+streamlit run src/dashboard.py
+```
+
+**Dashboard Features:**
+1. 📋 Risk register with likelihood × impact scoring
+2. 🎲 Monte Carlo simulation with triangular/lognormal
+3. 📈 Loss Exceedance Curves
+4. 📊 KPI/KRI Dashboard with risk appetite gauge
+5. 📤 Export CSV, TXT, and **PowerPoint** presentations
+
+**Both dashboards:** http://localhost:8501
 
 ### 2. Simple Risk Register Quantification (Python API)
 
@@ -310,6 +324,50 @@ risk-mc/
 └── README.md                    # This file
 ```
 
+## 📊 Dashboards & KPI/KRI Features
+
+### Two Complete Dashboard Options:
+
+#### 1. Risk MC Dashboard (`src/risk_mc_dashboard.py`)
+
+**Best for:** Quantitative Monte Carlo analysis
+
+**5 Tabs:**
+- 📋 **Risk Register**: Upload CSV/Excel, quantify risks
+- 🎲 **Monte Carlo**: Individual risk deep-dive (1K-100K sims)
+- 📈 **Loss Exceedance Curve**: Interactive LEC with percentiles
+- 📊 **KPI/KRI Dashboard**: Portfolio metrics, top exposures, category breakdown
+- 📤 **Export**: CSV download, executive summary
+
+**Launch:** `streamlit run src/risk_mc_dashboard.py`
+
+#### 2. Original Dashboard (`src/dashboard.py`)
+
+**Best for:** Traditional risk scoring with likelihood × impact
+
+**4 Tabs:**
+- 📋 **Risk Register**: Upload and manage risk data
+- 🎲 **Monte Carlo**: Triangular/lognormal simulation
+- 📈 **Loss Exceedance Curve**: Portfolio LEC
+- 📊 **KPI/KRI Dashboard**: Inherent vs Residual, trends, gauge
+
+**Export Options:**
+- CSV, TXT, and **PowerPoint** (3-slide executive deck) ⭐
+
+**Launch:** `streamlit run src/dashboard.py`
+
+### KPI/KRI Metrics (Available in Both Dashboards)
+
+1. Total Inherent vs Residual Loss
+2. Mitigation Effectiveness %
+3. Portfolio VaR95, VaR99
+4. Top Risk Driver
+5. Concentration Ratio (top 3 / total)
+6. Expected Annual Loss
+7. Tornado charts (dVaR) - Risk MC dashboard
+
+---
+
 ## 🧪 Testing
 
 ```bash
@@ -325,6 +383,14 @@ pytest tests/test_simulate.py -v
 
 ### Test Coverage
 
+**149 tests total, 100% passing** ✅
+
+- **Risk MC Library** (70 tests): Distributions, simulation, LEC, I/O, quantification
+- **Dashboard KRI** (27 tests): KPI/KRI calculations, visualizations, metrics
+- **Original Dashboard** (46 tests): Monte Carlo, risk register, curves
+- **Risk MC Dashboard** (6 tests): Smoke tests, imports
+
+**Quality Checks:**
 - **Deterministic with seed**: All simulations reproducible
 - **Shape validation**: Output dimensions correct
 - **Monotonicity**: Percentiles ordered (p99 ≥ p95 ≥ p90 ≥ p50)
