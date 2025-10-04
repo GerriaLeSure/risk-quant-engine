@@ -1,15 +1,16 @@
-.PHONY: help install test lint format clean run-demo
+.PHONY: help install test lint format clean run-demo run-dashboard
 
 help:
 	@echo "Risk MC - Monte Carlo Engine for Enterprise Risk Quantification"
 	@echo ""
 	@echo "Available commands:"
-	@echo "  make install     - Install dependencies"
-	@echo "  make test        - Run test suite"
-	@echo "  make lint        - Run linter (ruff)"
-	@echo "  make format      - Format code with black"
-	@echo "  make clean       - Clean artifacts and cache"
-	@echo "  make run-demo    - Run portfolio simulation demo"
+	@echo "  make install       - Install dependencies"
+	@echo "  make test          - Run test suite"
+	@echo "  make lint          - Run linter (ruff)"
+	@echo "  make format        - Format code with black"
+	@echo "  make clean         - Clean artifacts and cache"
+	@echo "  make run-demo      - Run portfolio simulation demo"
+	@echo "  make run-dashboard - Launch Streamlit dashboard"
 	@echo ""
 
 install:
@@ -39,5 +40,8 @@ clean:
 
 run-demo:
 	python scripts/demo_portfolio.py
+
+run-dashboard:
+	streamlit run src/risk_mc_dashboard.py --server.port=8501 --browser.gatherUsageStats=false
 
 all: format lint test run-demo
