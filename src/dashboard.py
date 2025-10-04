@@ -12,6 +12,7 @@ from pathlib import Path
 import sys
 import io
 from datetime import datetime
+import base64
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -19,6 +20,14 @@ sys.path.insert(0, str(Path(__file__).parent))
 from monte_carlo import MonteCarloSimulator, run_sensitivity_analysis
 from risk_register import RiskRegister
 from curves import LossExceedanceCurve
+
+# Try to import python-pptx for PowerPoint export
+try:
+    from pptx import Presentation
+    from pptx.util import Inches, Pt
+    HAS_PPTX = True
+except ImportError:
+    HAS_PPTX = False
 
 # Page configuration
 st.set_page_config(
@@ -640,6 +649,79 @@ def display_kpi_dashboard():
     st.plotly_chart(fig, use_container_width=True)
 
 
+def generate_powerpoint_deck():
+    """Generate PowerPoint presentation with risk analytics"""
+    if not HAS_PPTX:
+        return None
+    
+    try:
+        # Create presentation
+        prs = Presentation()
+        prs.slide_width = Inches(10)
+        prs.slide_height = Inches(7.5)
+        
+        # Slide 1: Title
+        slide = prs.slides.add_slide(prs.slide_layouts[0])
+        title = slide.shapes.title
+        subtitle = slide.placeholders[1]
+        
+        title.text = "Enterprise Risk Analytics"
+        subtitle.text = f"Executive Summary\n{datetime.now().strftime('%B %d, %Y')}"
+        
+        # Slide 2: Executive Summary
+        slide = prs.slides.add_slide(prs.slide_layouts[1])
+        title = slide.shapes.title
+        title.text = "Executive Summary"
+        
+        body_shape = slide.placeholders[1]
+        tf = body_shape.text_frame
+        summary_text = generate_executive_summary()
+        # Truncate if too long
+        tf.text = summary_text[:1000] + "..." if len(summary_text) > 1000 else summary_text
+        
+        # Slide 3: KPI/KRI Summary
+        slide = prs.slides.add_slide(prs.slide_layouts[1])
+        title = slide.shapes.title
+        title.text = "Key Risk Indicators"
+        
+        body_shape = slide.placeholders[1]
+        tf = body_shape.text_frame
+        
+        if st.session_state.risk_register is not None:
+            rr = st.session_state.risk_register
+            df = rr.get_risks()
+            
+            p = tf.add_paragraph()
+            p.text = f"Total Risks: {len(df)}"
+            p.level = 0
+            
+            p = tf.add_paragraph()
+            p.text = f"High Priority Risks: {len(df[df['residual_risk_score'] > df['residual_risk_score'].quantile(0.75)])}"
+            p.level = 0
+            
+            p = tf.add_paragraph()
+            risk_reduction = ((df['inherent_risk_score'].sum() - df['residual_risk_score'].sum()) / 
+                             df['inherent_risk_score'].sum() * 100)
+            p.text = f"Risk Mitigation: {risk_reduction:.1f}%"
+            p.level = 0
+            
+            if st.session_state.portfolio_stats is not None:
+                p = tf.add_paragraph()
+                expected_loss = st.session_state.portfolio_stats['total_mean_loss']
+                p.text = f"Expected Annual Loss: ${expected_loss:,.0f}"
+                p.level = 0
+        
+        # Save to bytes
+        ppt_bytes = io.BytesIO()
+        prs.save(ppt_bytes)
+        ppt_bytes.seek(0)
+        return ppt_bytes.getvalue()
+        
+    except Exception as e:
+        st.error(f"Error generating PowerPoint: {str(e)}")
+        return None
+
+
 def export_section():
     """Export functionality"""
     st.sidebar.markdown("---")
@@ -670,8 +752,24 @@ def export_section():
                 mime="text/csv"
             )
         
-        # Export PDF summary
-        if st.sidebar.button("📄 Generate Executive Summary (PDF)"):
+        # Export PowerPoint
+        if HAS_PPTX:
+            if st.sidebar.button("📊 Generate Executive Deck (PPTX)"):
+                with st.spinner("Generating PowerPoint presentation..."):
+                    ppt_data = generate_powerpoint_deck()
+                    if ppt_data:
+                        st.sidebar.download_button(
+                            label="⬇️ Download PowerPoint",
+                            data=ppt_data,
+                            file_name=f"risk_analytics_deck_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pptx",
+                            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                        )
+                        st.sidebar.success("✅ PowerPoint generated!")
+        else:
+            st.sidebar.info("💡 Install python-pptx for PowerPoint export:\npip install python-pptx")
+        
+        # Export Text Summary
+        if st.sidebar.button("📄 Generate Executive Summary (TXT)"):
             # Create executive summary text
             summary = generate_executive_summary()
             
@@ -681,8 +779,6 @@ def export_section():
                 file_name=f"risk_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
                 mime="text/plain"
             )
-            
-            st.sidebar.info("Note: PDF export requires additional libraries. Text summary provided.")
 
 
 def generate_executive_summary():
