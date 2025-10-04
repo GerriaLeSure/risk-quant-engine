@@ -30,10 +30,30 @@ pip install -r requirements.txt
 
 ## 🚀 Quick Start
 
-### 1. Run Demo Simulation
+### 1. Simple Risk Register Quantification
+
+```python
+from risk_mc import load_register, quantify_register
+
+# Load your risk register
+register = load_register("data/sample_risk_register.csv")
+
+# Run quantification (50,000 simulations)
+quantified = quantify_register(register, n_sims=50_000, seed=42)
+
+# View results
+print(quantified[["RiskID", "SimMean", "SimVaR95", "SimTVaR95"]])
+
+# Save results
+quantified.to_csv("quantified_risks.csv", index=False)
+```
+
+### 2. Run Demo Simulation
 
 ```bash
 make run-demo
+# or
+python scripts/demo_portfolio.py
 ```
 
 This will:
@@ -42,7 +62,7 @@ This will:
 - Generate analytics and visualizations in `artifacts/`
 - Save quantified risk register with VaR/TVaR metrics
 
-### 2. Basic Usage
+### 3. Basic Usage
 
 ```python
 from risk_mc import load_register, simulate_portfolio, summary
@@ -103,6 +123,67 @@ fig = plot_tornado(tornado_df, metric="mean_loss")
 fig.savefig("tornado.png")
 ```
 
+## 📋 Risk Register Integration
+
+### Overview
+
+The `risk_register` module provides high-level functions for end-to-end risk quantification:
+
+1. **Load** risk register from CSV/Excel
+2. **Quantify** all risks with Monte Carlo simulation
+3. **Analyze** results with summary statistics
+4. **Save** quantified register with metrics
+5. **Compare** scenarios with different parameters
+
+### Quick Example
+
+```python
+from risk_mc import (
+    load_register,
+    quantify_register,
+    get_risk_summary,
+    save_quantified_register
+)
+
+# Load and quantify
+register = load_register("data/risks.csv")
+quantified = quantify_register(register, n_sims=50_000, seed=42)
+
+# View top risks
+top_risks = get_risk_summary(quantified, top_n=10)
+print(top_risks)
+
+# Save results
+save_quantified_register(quantified, "output/quantified.csv")
+```
+
+### Scenario Comparison
+
+```python
+from risk_mc import compare_scenarios
+
+scenarios = {
+    "Enhanced_Controls": {
+        "R01": {"ControlEffectiveness": 0.6},
+        "R02": {"ResidualFactor": 0.5}
+    },
+    "High_Frequency": {
+        "R03": {"FreqParam1": 3.0}
+    }
+}
+
+comparison = compare_scenarios(register, scenarios, n_sims=20_000, seed=42)
+print(comparison)
+```
+
+**Output:**
+```
+     scenario        mean     var_95    tvar_95
+         Base  2,292,100  4,480,423  6,649,507
+Enhanced_...  2,079,734  3,828,323  5,382,366
+High_Freq...  2,768,472  4,979,651  7,298,766
+```
+
 ## 📊 Risk Register Format
 
 CSV/Excel file with the following columns:
@@ -122,7 +203,7 @@ CSV/Excel file with the following columns:
 | `ControlEffectiveness` | Control reduction (0-1) | 0.3 = 30% reduction |
 | `ResidualFactor` | Residual multiplier (0-1) | 0.7 = 30% reduction |
 
-### Example Risk Register
+### Example Input CSV
 
 ```csv
 RiskID,Category,Description,FrequencyModel,FreqParam1,FreqParam2,SeverityModel,SevParam1,SevParam2,SevParam3,ControlEffectiveness,ResidualFactor
@@ -131,6 +212,24 @@ R02,Cyber,Ransomware incident,Poisson,0.5,,Lognormal,14.0,1.2,,0.4,0.6
 R03,Operational,Supply chain disruption,Poisson,1.5,,Normal,500000,150000,,0.2,0.8
 R04,Operational,Equipment failure,NegBin,3.0,0.6,PERT,50000,100000,300000,0.1,0.9
 ```
+
+### Example Output (Quantified Register)
+
+After running `quantify_register()`, you get:
+
+| RiskID | Category | mean | median | std | p90 | p95 | p99 | var_95 | var_99 | tvar_95 | tvar_99 |
+|--------|----------|------|--------|-----|-----|-----|-----|--------|--------|---------|---------|
+| R01 | Cyber | 221,043 | 187,092 | 167,421 | 418,926 | 630,359 | 973,896 | 630,359 | 973,896 | 841,694 | 1,202,487 |
+| R02 | Cyber | 449,181 | 0 | 1,346,823 | 917,877 | 2,297,463 | 5,415,995 | 2,297,463 | 5,415,995 | 4,531,480 | 9,346,549 |
+| R03 | Operational | 479,453 | 479,618 | 199,871 | 731,234 | 1,244,722 | 1,662,909 | 1,244,722 | 1,662,909 | 1,505,673 | 1,898,048 |
+| **PORTFOLIO_TOTAL** | **Portfolio** | **2,292,100** | **2,011,135** | **1,500,990** | **3,613,576** | **4,480,423** | **7,532,116** | **4,480,423** | **7,532,116** | **6,649,507** | **11,312,135** |
+
+**Interpretation:**
+- **mean**: Budget this amount annually
+- **var_95**: 1-in-20 year loss (95th percentile)
+- **var_99**: 1-in-100 year loss (99th percentile)
+- **tvar_95**: Average loss when exceeding VaR95 (regulatory capital)
+- **tvar_99**: Average loss in worst 1% scenarios
 
 ### Distribution Parameters
 
@@ -237,7 +336,105 @@ Shows probability of annual loss exceeding various thresholds:
 - **Y-axis**: Exceedance probability (%)
 - **Interpretation**: For threshold $X, curve shows P(Loss ≥ $X)
 
+## 📊 Risk Register Integration
+
+### Input CSV Format
+
+Your risk register should be a CSV/Excel file with these columns:
+
+```csv
+RiskID,Category,Description,FrequencyModel,FreqParam1,FreqParam2,SeverityModel,SevParam1,SevParam2,SevParam3,ControlEffectiveness,ResidualFactor
+R01,Cyber,Phishing attack,Poisson,2.0,,Lognormal,12.0,0.8,,0.3,0.7
+R02,Ops,Data center outage,NegBin,2,0.3,PERT,50000,1500000,4000000,0.5,0.8
+R03,Financial,Market volatility,Poisson,3.0,,Lognormal,11.5,0.6,,0.0,1.0
+```
+
+**Required Columns:**
+- `RiskID`: Unique risk identifier
+- `FrequencyModel`: 'Poisson' or 'NegBin'
+- `FreqParam1`: λ (Poisson) or r (NegBin)
+- `SeverityModel`: 'Lognormal', 'Normal', or 'PERT'
+- `SevParam1`, `SevParam2`: Distribution parameters
+
+**Optional Columns:**
+- `FreqParam2`: p for NegBin (required for NegBin)
+- `SevParam3`: max for PERT (required for PERT)
+- `ControlEffectiveness`: 0-1, default 0
+- `ResidualFactor`: 0-1, default 1
+
+### Quantify Your Register
+
+```python
+from risk_mc import load_register, quantify_register
+
+# Load register
+register = load_register("my_risks.csv")
+
+# Quantify (runs Monte Carlo simulation)
+quantified = quantify_register(
+    register, 
+    n_sims=50_000,  # Number of simulations
+    seed=42          # For reproducibility
+)
+
+# View results
+print(quantified)
+```
+
+### Output Format
+
+`quantify_register()` returns a DataFrame with all original columns plus:
+
+| Column | Description |
+|--------|-------------|
+| `SimMean` | Mean annual loss |
+| `SimMedian` | Median annual loss |
+| `SimStd` | Standard deviation |
+| `SimP90` | 90th percentile |
+| `SimP95` | 95th percentile |
+| `SimP99` | 99th percentile |
+| `SimVaR95` | Value at Risk (95%) |
+| `SimVaR99` | Value at Risk (99%) |
+| `SimTVaR95` | Tail VaR (95%) / Expected Shortfall |
+| `SimTVaR99` | Tail VaR (99%) / Expected Shortfall |
+
+**Example Output:**
+
+```
+RiskID  Category  SimMean     SimVaR95    SimTVaR95
+R01     Cyber     221,043     630,359     841,694
+R02     Cyber     449,181     2,297,463   4,531,480
+R03     Ops       479,453     1,244,722   1,505,673
+...
+PORTFOLIO_TOTAL   2,292,100   4,480,423   6,649,507
+```
+
+The last row (`PORTFOLIO_TOTAL`) shows aggregate portfolio metrics.
+
+### Save Results
+
+```python
+# Save to CSV
+quantified.to_csv("quantified_register.csv", index=False)
+
+# Save to Excel
+quantified.to_excel("quantified_register.xlsx", index=False)
+```
+
 ## 📚 API Reference
+
+### Risk Register
+
+```python
+load_register(path) -> pd.DataFrame
+  # Load risk register from CSV or Excel
+  # Validates schema and coerces data types
+  
+quantify_register(register_df, n_sims=50_000, seed=None) -> pd.DataFrame
+  # Run Monte Carlo simulation on risk register
+  # Returns DataFrame with all metrics for each risk
+  # Includes PORTFOLIO_TOTAL row
+```
 
 ### Simulation
 
