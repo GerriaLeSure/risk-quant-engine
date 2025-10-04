@@ -151,6 +151,101 @@ def _validate_register(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def quantify_register(
+    register_df: pd.DataFrame,
+    n_sims: int = 50_000,
+    seed: Optional[int] = None
+) -> pd.DataFrame:
+    """
+    Quantify risk register by running Monte Carlo simulation.
+    
+    For each risk, computes key metrics: mean, median, std, percentiles, VaR, TVaR.
+    
+    Args:
+        register_df: Risk register DataFrame with required columns
+        n_sims: Number of Monte Carlo simulations (default: 50,000)
+        seed: Random seed for reproducibility (default: None)
+        
+    Returns:
+        DataFrame with original risk data plus quantified metrics:
+            - SimMean: Mean annual loss
+            - SimMedian: Median annual loss
+            - SimStd: Standard deviation of annual loss
+            - SimP90, SimP95, SimP99: Percentiles
+            - SimVaR95, SimVaR99: Value at Risk
+            - SimTVaR95, SimTVaR99: Tail Value at Risk (Expected Shortfall)
+    """
+    from .simulate import simulate_portfolio
+    
+    # Run simulation
+    portfolio_df = simulate_portfolio(register_df, n_sims=n_sims, seed=seed)
+    
+    # Start with original register
+    quantified_df = register_df.copy()
+    
+    # Extract risk columns from portfolio simulation
+    risk_columns = [col for col in portfolio_df.columns if col.startswith("by_risk:")]
+    
+    # Calculate metrics for each risk
+    for col in risk_columns:
+        risk_id = col.replace("by_risk:", "")
+        losses = portfolio_df[col].values
+        
+        # Find matching row in register
+        mask = quantified_df["RiskID"] == risk_id
+        
+        if not mask.any():
+            warnings.warn(f"Risk {risk_id} in simulation but not in register")
+            continue
+        
+        # Calculate all metrics
+        quantified_df.loc[mask, "SimMean"] = np.mean(losses)
+        quantified_df.loc[mask, "SimMedian"] = np.median(losses)
+        quantified_df.loc[mask, "SimStd"] = np.std(losses)
+        quantified_df.loc[mask, "SimP90"] = np.percentile(losses, 90)
+        quantified_df.loc[mask, "SimP95"] = np.percentile(losses, 95)
+        quantified_df.loc[mask, "SimP99"] = np.percentile(losses, 99)
+        quantified_df.loc[mask, "SimVaR95"] = np.percentile(losses, 95)
+        quantified_df.loc[mask, "SimVaR99"] = np.percentile(losses, 99)
+        
+        # TVaR (Expected Shortfall)
+        var95 = np.percentile(losses, 95)
+        tail95 = losses[losses >= var95]
+        quantified_df.loc[mask, "SimTVaR95"] = np.mean(tail95) if len(tail95) > 0 else var95
+        
+        var99 = np.percentile(losses, 99)
+        tail99 = losses[losses >= var99]
+        quantified_df.loc[mask, "SimTVaR99"] = np.mean(tail99) if len(tail99) > 0 else var99
+    
+    # Add portfolio total row
+    portfolio_losses = portfolio_df["portfolio_loss"].values
+    portfolio_row = {
+        "RiskID": "PORTFOLIO_TOTAL",
+        "Category": "Portfolio",
+        "Description": "Total portfolio loss",
+        "SimMean": np.mean(portfolio_losses),
+        "SimMedian": np.median(portfolio_losses),
+        "SimStd": np.std(portfolio_losses),
+        "SimP90": np.percentile(portfolio_losses, 90),
+        "SimP95": np.percentile(portfolio_losses, 95),
+        "SimP99": np.percentile(portfolio_losses, 99),
+        "SimVaR95": np.percentile(portfolio_losses, 95),
+        "SimVaR99": np.percentile(portfolio_losses, 99),
+    }
+    
+    var95 = np.percentile(portfolio_losses, 95)
+    tail95 = portfolio_losses[portfolio_losses >= var95]
+    portfolio_row["SimTVaR95"] = np.mean(tail95) if len(tail95) > 0 else var95
+    
+    var99 = np.percentile(portfolio_losses, 99)
+    tail99 = portfolio_losses[portfolio_losses >= var99]
+    portfolio_row["SimTVaR99"] = np.mean(tail99) if len(tail99) > 0 else var99
+    
+    quantified_df = pd.concat([quantified_df, pd.DataFrame([portfolio_row])], ignore_index=True)
+    
+    return quantified_df
+
+
 def save_quantified_register(
     register_df: pd.DataFrame,
     portfolio_df: pd.DataFrame,

@@ -1,256 +1,314 @@
 """
-Tests for Risk Register module
+Tests for Risk Register Integration module
 """
 
 import pytest
 import pandas as pd
 import numpy as np
-import sys
 from pathlib import Path
 import tempfile
+import sys
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from risk_register import RiskRegister
+from risk_mc.risk_register import (
+    load_register,
+    quantify_register,
+    save_quantified_register,
+    get_risk_summary,
+    compare_scenarios
+)
 
 
-class TestRiskRegister:
-    """Test suite for RiskRegister class"""
+class TestLoadRegister:
+    """Tests for load_register function."""
+    
+    def test_load_sample_csv(self):
+        """Test loading sample risk register CSV."""
+        data_dir = Path(__file__).parent.parent / "data"
+        sample_path = data_dir / "sample_risk_register.csv"
+        
+        df = load_register(str(sample_path))
+        
+        # Check shape
+        assert len(df) > 0
+        assert len(df.columns) > 0
+        
+        # Check required columns
+        required = ["RiskID", "Category", "FrequencyModel", "SeverityModel",
+                   "FreqParam1", "SevParam1", "SevParam2"]
+        for col in required:
+            assert col in df.columns
+    
+    def test_load_user_csv(self):
+        """Test loading user risk register CSV."""
+        data_dir = Path(__file__).parent.parent / "data"
+        user_path = data_dir / "user_risk_register.csv"
+        
+        df = load_register(str(user_path))
+        
+        assert len(df) == 10
+        assert "RiskID" in df.columns
+        assert df["RiskID"].iloc[0] == "R1"
+    
+    def test_load_invalid_path_raises(self):
+        """Test that invalid path raises FileNotFoundError."""
+        with pytest.raises(FileNotFoundError):
+            load_register("nonexistent_file.csv")
+
+
+class TestQuantifyRegister:
+    """Tests for quantify_register function."""
     
     @pytest.fixture
-    def sample_risk_df(self):
-        """Create sample risk DataFrame for testing"""
+    def sample_register(self):
+        """Create a simple test register."""
         return pd.DataFrame({
-            'risk_id': ['R001', 'R002', 'R003'],
-            'risk_name': ['Cyber Attack', 'Supply Chain', 'Regulatory'],
-            'category': ['Technology', 'Operational', 'Compliance'],
-            'likelihood': [0.35, 0.25, 0.20],
-            'impact': [500000, 800000, 1200000],
-            'likelihood_std': [0.12, 0.10, 0.08],
-            'impact_min': [200000, 300000, 500000],
-            'impact_most_likely': [500000, 800000, 1200000],
-            'impact_max': [1500000, 2000000, 3000000],
-            'owner': ['CISO', 'COO', 'CCO'],
-            'status': ['Active', 'Active', 'Active'],
-            'inherent_risk_score': [175000, 200000, 240000],
-            'residual_risk_score': [122500, 140000, 168000]
+            "RiskID": ["R1", "R2"],
+            "Category": ["Cyber", "Ops"],
+            "Description": ["Test risk 1", "Test risk 2"],
+            "FrequencyModel": ["Poisson", "Poisson"],
+            "FreqParam1": [1.0, 2.0],
+            "FreqParam2": [None, None],
+            "SeverityModel": ["Lognormal", "Normal"],
+            "SevParam1": [11.0, 100000],
+            "SevParam2": [0.5, 30000],
+            "SevParam3": [None, None],
+            "ControlEffectiveness": [0.0, 0.2],
+            "ResidualFactor": [1.0, 0.8]
         })
     
-    def test_initialization(self):
-        """Test RiskRegister initialization"""
-        rr = RiskRegister()
-        assert rr.risks_df is None
-        assert rr.original_df is None
+    def test_quantify_returns_correct_shape(self, sample_register):
+        """Test that quantify_register returns correct shape."""
+        result = quantify_register(sample_register, n_sims=1000, seed=42)
+        
+        # Should have original 2 risks + portfolio total
+        assert len(result) == 3
+        
+        # Check columns
+        expected_cols = ["RiskID", "Category", "mean", "median", "std",
+                        "p90", "p95", "p99", "var_95", "var_99", "tvar_95", "tvar_99"]
+        for col in expected_cols:
+            assert col in result.columns
     
-    def test_load_from_dataframe(self, sample_risk_df):
-        """Test loading from DataFrame"""
-        rr = RiskRegister()
-        df = rr.load_from_dataframe(sample_risk_df)
+    def test_quantify_has_portfolio_total(self, sample_register):
+        """Test that portfolio total is included."""
+        result = quantify_register(sample_register, n_sims=1000, seed=42)
         
-        assert df is not None
-        assert len(df) == 3
-        assert 'risk_id' in df.columns
-        assert 'risk_name' in df.columns
+        portfolio = result[result["RiskID"] == "PORTFOLIO_TOTAL"]
+        assert len(portfolio) == 1
+        assert portfolio["Category"].iloc[0] == "Portfolio"
     
-    def test_load_from_csv(self, sample_risk_df):
-        """Test loading from CSV file"""
-        # Create temporary CSV file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
-            sample_risk_df.to_csv(f.name, index=False)
-            temp_path = f.name
+    def test_quantify_metrics_are_numeric(self, sample_register):
+        """Test that all metrics are numeric."""
+        result = quantify_register(sample_register, n_sims=1000, seed=42)
         
-        rr = RiskRegister()
-        df = rr.load_from_csv(temp_path)
+        numeric_cols = ["mean", "median", "std", "p90", "p95", "p99",
+                       "var_95", "var_99", "tvar_95", "tvar_99"]
         
-        assert df is not None
-        assert len(df) == 3
-        
-        # Clean up
-        Path(temp_path).unlink()
+        for col in numeric_cols:
+            assert pd.api.types.is_numeric_dtype(result[col])
+            # Check for non-null values (excluding portfolio which might have nulls in some fields)
+            risk_rows = result[result["RiskID"] != "PORTFOLIO_TOTAL"]
+            assert risk_rows[col].notna().all()
     
-    def test_validate_and_clean_minimal_data(self):
-        """Test validation with minimal required data"""
-        rr = RiskRegister()
+    def test_quantify_deterministic_with_seed(self, sample_register):
+        """Test that results are deterministic with seed."""
+        result1 = quantify_register(sample_register, n_sims=1000, seed=42)
+        result2 = quantify_register(sample_register, n_sims=1000, seed=42)
         
-        # Minimal DataFrame
-        minimal_df = pd.DataFrame({
-            'risk_id': ['R001'],
-            'risk_name': ['Test Risk'],
-            'likelihood': [0.3],
-            'impact': [500000]
+        # Compare mean values for R1
+        r1_mean_1 = result1[result1["RiskID"] == "R1"]["mean"].iloc[0]
+        r1_mean_2 = result2[result2["RiskID"] == "R1"]["mean"].iloc[0]
+        
+        assert r1_mean_1 == r1_mean_2
+    
+    def test_quantify_percentile_ordering(self, sample_register):
+        """Test that percentiles are ordered: p90 <= p95 <= p99."""
+        result = quantify_register(sample_register, n_sims=5000, seed=42)
+        
+        for _, row in result.iterrows():
+            if row["RiskID"] != "PORTFOLIO_TOTAL":
+                assert row["p90"] <= row["p95"]
+                assert row["p95"] <= row["p99"]
+    
+    def test_quantify_var_ordering(self, sample_register):
+        """Test that VaR values are ordered: var_95 <= var_99."""
+        result = quantify_register(sample_register, n_sims=5000, seed=42)
+        
+        for _, row in result.iterrows():
+            assert row["var_95"] <= row["var_99"]
+    
+    def test_quantify_tvar_greater_than_var(self, sample_register):
+        """Test that TVaR >= VaR."""
+        result = quantify_register(sample_register, n_sims=5000, seed=42)
+        
+        for _, row in result.iterrows():
+            assert row["tvar_95"] >= row["var_95"]
+            assert row["tvar_99"] >= row["var_99"]
+    
+    def test_higher_sigma_increases_var(self):
+        """Test that higher sigma increases VaR95."""
+        # Low sigma risk
+        low_sigma_df = pd.DataFrame({
+            "RiskID": ["R1"],
+            "Category": ["Test"],
+            "Description": ["Low volatility"],
+            "FrequencyModel": ["Poisson"],
+            "FreqParam1": [2.0],
+            "SeverityModel": ["Lognormal"],
+            "SevParam1": [11.0],
+            "SevParam2": [0.5],  # Low sigma
+            "ControlEffectiveness": [0.0],
+            "ResidualFactor": [1.0]
         })
         
-        df = rr.load_from_dataframe(minimal_df)
+        # High sigma risk
+        high_sigma_df = pd.DataFrame({
+            "RiskID": ["R1"],
+            "Category": ["Test"],
+            "Description": ["High volatility"],
+            "FrequencyModel": ["Poisson"],
+            "FreqParam1": [2.0],
+            "SeverityModel": ["Lognormal"],
+            "SevParam1": [11.0],
+            "SevParam2": [1.5],  # High sigma
+            "ControlEffectiveness": [0.0],
+            "ResidualFactor": [1.0]
+        })
         
-        # Check that missing columns were added
-        assert 'likelihood_std' in df.columns
-        assert 'impact_min' in df.columns
-        assert 'impact_max' in df.columns
-        assert 'inherent_risk_score' in df.columns
-        assert 'residual_risk_score' in df.columns
-        assert 'category' in df.columns
+        low_result = quantify_register(low_sigma_df, n_sims=10000, seed=42)
+        high_result = quantify_register(high_sigma_df, n_sims=10000, seed=42)
+        
+        low_var95 = low_result[low_result["RiskID"] == "R1"]["var_95"].iloc[0]
+        high_var95 = high_result[high_result["RiskID"] == "R1"]["var_95"].iloc[0]
+        
+        assert high_var95 > low_var95
+
+
+class TestSaveQuantifiedRegister:
+    """Tests for save_quantified_register function."""
     
-    def test_get_risks(self, sample_risk_df):
-        """Test getting risks"""
-        rr = RiskRegister()
-        rr.load_from_dataframe(sample_risk_df)
+    def test_save_to_csv(self, tmp_path):
+        """Test saving to CSV."""
+        quantified = pd.DataFrame({
+            "RiskID": ["R1", "R2"],
+            "Category": ["Cyber", "Ops"],
+            "mean": [100000, 200000],
+            "var_95": [300000, 400000]
+        })
         
-        df = rr.get_risks()
-        assert len(df) == 3
-        assert isinstance(df, pd.DataFrame)
+        out_path = tmp_path / "test_output.csv"
+        save_quantified_register(quantified, str(out_path))
+        
+        assert out_path.exists()
+        
+        # Verify contents
+        loaded = pd.read_csv(out_path)
+        assert len(loaded) == 2
+        assert "RiskID" in loaded.columns
     
-    def test_get_risks_before_loading(self):
-        """Test that get_risks raises error when no data loaded"""
-        rr = RiskRegister()
+    def test_save_to_excel(self, tmp_path):
+        """Test saving to Excel."""
+        quantified = pd.DataFrame({
+            "RiskID": ["R1", "R2"],
+            "Category": ["Cyber", "Ops"],
+            "mean": [100000, 200000],
+            "var_95": [300000, 400000]
+        })
         
-        with pytest.raises(ValueError):
-            rr.get_risks()
+        out_path = tmp_path / "test_output.xlsx"
+        save_quantified_register(quantified, str(out_path))
+        
+        assert out_path.exists()
+        
+        # Verify contents
+        loaded = pd.read_excel(out_path)
+        assert len(loaded) == 2
     
-    def test_filter_by_category(self, sample_risk_df):
-        """Test filtering by category"""
-        rr = RiskRegister()
-        rr.load_from_dataframe(sample_risk_df)
+    def test_save_invalid_format_raises(self, tmp_path):
+        """Test that invalid format raises error."""
+        quantified = pd.DataFrame({"RiskID": ["R1"]})
+        out_path = tmp_path / "test.txt"
         
-        filtered = rr.filter_by_category('Technology')
-        
-        assert len(filtered) == 1
-        assert filtered.iloc[0]['risk_id'] == 'R001'
+        with pytest.raises(ValueError, match="Unsupported file format"):
+            save_quantified_register(quantified, str(out_path))
+
+
+class TestGetRiskSummary:
+    """Tests for get_risk_summary function."""
     
-    def test_filter_by_status(self, sample_risk_df):
-        """Test filtering by status"""
-        rr = RiskRegister()
-        rr.load_from_dataframe(sample_risk_df)
+    def test_get_summary_returns_top_n(self):
+        """Test that summary returns top N risks."""
+        quantified = pd.DataFrame({
+            "RiskID": ["R1", "R2", "R3", "PORTFOLIO_TOTAL"],
+            "Category": ["A", "B", "C", "Portfolio"],
+            "mean": [100, 300, 200, 600],
+            "var_95": [200, 500, 400, 1100],
+            "var_99": [250, 600, 450, 1300],
+            "tvar_95": [220, 550, 420, 1190],
+            "tvar_99": [270, 650, 480, 1400]
+        })
         
-        filtered = rr.filter_by_status('Active')
+        summary = get_risk_summary(quantified, top_n=2)
         
-        assert len(filtered) == 3
+        assert len(summary) == 2
+        assert summary.iloc[0]["RiskID"] == "R2"  # Highest mean
+        assert summary.iloc[1]["RiskID"] == "R3"  # Second highest
     
-    def test_get_high_priority_risks(self, sample_risk_df):
-        """Test getting high priority risks"""
-        rr = RiskRegister()
-        rr.load_from_dataframe(sample_risk_df)
+    def test_get_summary_excludes_portfolio(self):
+        """Test that portfolio total is excluded."""
+        quantified = pd.DataFrame({
+            "RiskID": ["R1", "PORTFOLIO_TOTAL"],
+            "Category": ["A", "Portfolio"],
+            "mean": [100, 100],
+            "var_95": [200, 200],
+            "var_99": [250, 250],
+            "tvar_95": [220, 220],
+            "tvar_99": [270, 270]
+        })
         
-        high_priority = rr.get_high_priority_risks(threshold=0.5)
+        summary = get_risk_summary(quantified, top_n=5)
         
-        # Should return top 50% of risks
-        assert len(high_priority) >= 1
-        assert (high_priority['residual_risk_score'] >= 
-                sample_risk_df['residual_risk_score'].quantile(0.5)).all()
+        assert "PORTFOLIO_TOTAL" not in summary["RiskID"].values
+
+
+class TestCompareScenarios:
+    """Tests for compare_scenarios function."""
     
-    def test_get_summary_statistics(self, sample_risk_df):
-        """Test summary statistics"""
-        rr = RiskRegister()
-        rr.load_from_dataframe(sample_risk_df)
-        
-        stats = rr.get_summary_statistics()
-        
-        assert stats['total_risks'] == 3
-        assert stats['active_risks'] == 3
-        assert 'avg_likelihood' in stats
-        assert 'avg_impact' in stats
-        assert 'categories' in stats
-        assert stats['categories'] == 3
+    @pytest.fixture
+    def base_register(self):
+        """Create base register for scenarios."""
+        return pd.DataFrame({
+            "RiskID": ["R1", "R2"],
+            "Category": ["Cyber", "Ops"],
+            "Description": ["Risk 1", "Risk 2"],
+            "FrequencyModel": ["Poisson", "Poisson"],
+            "FreqParam1": [1.0, 2.0],
+            "SeverityModel": ["Lognormal", "Normal"],
+            "SevParam1": [10.0, 100000],
+            "SevParam2": [0.5, 30000],
+            "ControlEffectiveness": [0.0, 0.0],
+            "ResidualFactor": [1.0, 1.0]
+        })
     
-    def test_export_to_csv(self, sample_risk_df):
-        """Test CSV export"""
-        rr = RiskRegister()
-        rr.load_from_dataframe(sample_risk_df)
-        
-        # Create temporary file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
-            temp_path = f.name
-        
-        rr.export_to_csv(temp_path)
-        
-        # Verify file was created and can be read
-        exported_df = pd.read_csv(temp_path)
-        assert len(exported_df) == 3
-        
-        # Clean up
-        Path(temp_path).unlink()
-    
-    def test_get_risk_matrix_data(self, sample_risk_df):
-        """Test risk matrix data preparation"""
-        rr = RiskRegister()
-        rr.load_from_dataframe(sample_risk_df)
-        
-        matrix_data = rr.get_risk_matrix_data()
-        
-        assert 'risk_id' in matrix_data.columns
-        assert 'likelihood' in matrix_data.columns
-        assert 'impact' in matrix_data.columns
-        assert len(matrix_data) == 3
-    
-    def test_add_risk(self, sample_risk_df):
-        """Test adding a new risk"""
-        rr = RiskRegister()
-        rr.load_from_dataframe(sample_risk_df)
-        
-        new_risk = {
-            'risk_id': 'R004',
-            'risk_name': 'New Risk',
-            'category': 'Strategic',
-            'likelihood': 0.4,
-            'impact': 600000,
-            'owner': 'CEO',
-            'status': 'Active'
+    def test_compare_scenarios_basic(self, base_register):
+        """Test basic scenario comparison."""
+        scenarios = {
+            "High_Freq": {"R1": {"FreqParam1": 3.0}}
         }
         
-        rr.add_risk(new_risk)
+        comparison = compare_scenarios(base_register, scenarios, n_sims=1000, seed=42)
         
-        df = rr.get_risks()
-        assert len(df) == 4
-        assert 'R004' in df['risk_id'].values
-    
-    def test_update_risk(self, sample_risk_df):
-        """Test updating an existing risk"""
-        rr = RiskRegister()
-        rr.load_from_dataframe(sample_risk_df)
+        assert len(comparison) == 2  # Base + 1 scenario
+        assert "Base" in comparison["scenario"].values
+        assert "High_Freq" in comparison["scenario"].values
         
-        rr.update_risk('R001', {'likelihood': 0.5, 'status': 'Mitigated'})
-        
-        df = rr.get_risks()
-        updated_risk = df[df['risk_id'] == 'R001'].iloc[0]
-        
-        assert updated_risk['likelihood'] == 0.5
-        assert updated_risk['status'] == 'Mitigated'
-    
-    def test_delete_risk(self, sample_risk_df):
-        """Test deleting a risk"""
-        rr = RiskRegister()
-        rr.load_from_dataframe(sample_risk_df)
-        
-        rr.delete_risk('R001')
-        
-        df = rr.get_risks()
-        assert len(df) == 2
-        assert 'R001' not in df['risk_id'].values
-    
-    def test_load_invalid_csv(self):
-        """Test loading invalid CSV file"""
-        rr = RiskRegister()
-        
-        with pytest.raises(ValueError):
-            rr.load_from_csv('nonexistent_file.csv')
-    
-    def test_numeric_conversion(self):
-        """Test that numeric columns are properly converted"""
-        rr = RiskRegister()
-        
-        # DataFrame with string numbers
-        df = pd.DataFrame({
-            'risk_id': ['R001'],
-            'risk_name': ['Test'],
-            'likelihood': ['0.3'],
-            'impact': ['500000']
-        })
-        
-        result_df = rr.load_from_dataframe(df)
-        
-        assert result_df['likelihood'].dtype in [np.float64, np.float32]
-        assert result_df['impact'].dtype in [np.float64, np.float32, np.int64, np.int32]
+        # High frequency should increase mean loss
+        base_mean = comparison[comparison["scenario"] == "Base"]["mean"].iloc[0]
+        high_freq_mean = comparison[comparison["scenario"] == "High_Freq"]["mean"].iloc[0]
+        assert high_freq_mean > base_mean
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
