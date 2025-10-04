@@ -1,0 +1,11 @@
+RiskID,Category,Description,FrequencyModel,FreqParam1,FreqParam2,SeverityModel,SevParam1,SevParam2,SevParam3,ControlEffectiveness,ResidualFactor
+R1,Cyber,Phishing attack,Poisson,2,,Lognormal,12.0,0.9,,0.6,0.7
+R2,Cyber,Ransomware event,Poisson,0.3,,Lognormal,14.5,1.1,,0.4,0.6
+R3,Operations,Data center outage,NegBin,2,0.3,PERT,50000,1500000,4000000,0.5,0.8
+R4,Fraud,Account takeover,Poisson,1.2,,Normal,20000,12000,,0.5,0.8
+R5,ThirdParty,Vendor breach,Poisson,0.6,,Lognormal,13.4,1.0,,0.5,0.75
+R6,Legal,Regulatory fine,Poisson,0.2,,PERT,200000,1000000,5000000,0.3,0.85
+R7,Market,Commodity price spike,NegBin,3,0.6,Normal,150000,80000,,0.3,0.9
+R8,Operations,Payment system outage,Poisson,0.9,,Lognormal,12.8,0.8,,0.6,0.8
+R9,Reputation,PR crisis,Poisson,0.15,,PERT,100000,800000,3000000,0.4,0.85
+R10,Physical,Facility incident,Poisson,0.7,,Normal,35000,20000,,0.5,0.85
