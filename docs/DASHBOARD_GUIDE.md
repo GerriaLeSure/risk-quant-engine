@@ -50,11 +50,16 @@ The sidebar contains 5 main sections:
 - Drag and drop CSV or Excel file
 - Automatic schema validation
 - Displays loaded risks in table
+- Use `blank_risk_register_template.csv` to create your own
 
 **Load Sample Data**
 - Click "Load Sample Register" button
-- Instantly loads 10 example risks
+- Instantly loads 10 example risks from `sample_risk_register.csv`
 - Great for testing and learning
+
+**Templates Available:**
+- `sample_risk_register.csv` - Pre-filled demo (10 risks)
+- `blank_risk_register_template.csv` - Empty template (headers only)
 
 **View Risk Data**
 - See all risks in table format

@@ -208,6 +208,22 @@ High_Freq...  2,768,472  4,979,651  7,298,766
 
 ## 📊 Risk Register Format
 
+### Templates Available
+
+Two CSV templates are provided in the `data/` directory:
+
+1. **`sample_risk_register.csv`** - Demo-ready template with 10 example risks
+   - Use this to explore the dashboard and learn the system
+   - Contains realistic risk examples across different categories
+   - Ready to load and quantify immediately
+
+2. **`blank_risk_register_template.csv`** - Empty template for your own risks
+   - Use this to create your own risk register from scratch
+   - Contains only column headers, no data rows
+   - Fill in with your organization's risk data
+
+### Required Columns
+
 CSV/Excel file with the following columns:
 
 | Column | Description | Example |
@@ -277,7 +293,9 @@ risk-mc/
 │   ├── plots.py                 # Visualization helpers
 │   └── io.py                    # CSV/Excel I/O
 ├── data/
-│   └── sample_risk_register.csv # Sample risk data (10 risks)
+│   ├── sample_risk_register.csv        # Sample with 10 example risks
+│   ├── blank_risk_register_template.csv # Empty template for custom risks
+│   └── SCHEMA.md                       # Detailed schema documentation
 ├── tests/
 │   ├── test_simulate.py         # Simulation tests
 │   ├── test_lec.py              # LEC tests
